@@ -5,3 +5,4 @@ export type { IPasswordHasher } from './IPasswordHasher';
 export type { IIdGenerator } from './IIdGenerator';
 export type { IRateLimiter, RateLimitResult } from './IRateLimiter';
 export type { ISanitizer } from './ISanitizer';
+export type { IJwtService, JwtPayload, CookieConfig, CookieOptions } from './IJwtService';

@@ -1,0 +1,106 @@
+.card {
+  padding: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.avatarIcon {
+  font-size: 1.25rem;
+}
+
+.avatarName {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.date {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+  word-break: break-word;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.selectButton {
+  padding: 0.375rem 0.75rem;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.selectButton:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.selectButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.answerButton {
+  padding: 0.375rem 0.75rem;
+  background: var(--color-success);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.answerButton:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.answerButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.discardButton {
+  padding: 0.375rem 0.75rem;
+  background: transparent;
+  color: var(--color-error);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.discardButton:hover:not(:disabled) {
+  background: var(--color-error-bg);
+}
+
+.discardButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

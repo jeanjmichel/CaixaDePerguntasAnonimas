@@ -1,0 +1,138 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.card {
+  padding: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.username {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.badgeActive {
+  padding: 0.125rem 0.5rem;
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badgeInactive {
+  padding: 0.125rem 0.5rem;
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badgeWarning {
+  padding: 0.125rem 0.5rem;
+  background: #fff3cd;
+  color: #856404;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badgeSelf {
+  padding: 0.125rem 0.5rem;
+  background: var(--color-avatar-selected);
+  color: var(--color-primary);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.date {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.cardActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.activateButton {
+  padding: 0.375rem 0.75rem;
+  background: var(--color-success);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.activateButton:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.activateButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.deactivateButton {
+  padding: 0.375rem 0.75rem;
+  background: var(--color-error);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.deactivateButton:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.deactivateButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.resetButton {
+  padding: 0.375rem 0.75rem;
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.resetButton:hover:not(:disabled) {
+  background: var(--color-avatar-selected);
+}
+
+.resetButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--color-text-muted);
+}

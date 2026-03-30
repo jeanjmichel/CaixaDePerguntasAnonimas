@@ -1,65 +1,114 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+
+import { useState, useEffect } from 'react';
+import type { MeetingResponseDTO } from '@/application/dtos/MeetingResponseDTO';
+import type { AvatarResponseDTO } from '@/application/dtos/AvatarResponseDTO';
+import type { SubmitQuestionOutput } from '@/application/dtos/SubmitQuestionOutput';
+import { QuestionForm } from '@/interface/components/public/QuestionForm';
+import { SuccessMessage } from '@/interface/components/public/SuccessMessage';
+import { apiFetch } from '@/interface/hooks/useApi';
+import styles from './page.module.css';
+
+type PageState = 'loading' | 'no-meeting' | 'form' | 'success';
 
 export default function Home() {
+  const [state, setState] = useState<PageState>('loading');
+  const [meeting, setMeeting] = useState<MeetingResponseDTO | null>(null);
+  const [avatars, setAvatars] = useState<AvatarResponseDTO[]>([]);
+  const [lastResult, setLastResult] = useState<SubmitQuestionOutput | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      const [meetingRes, avatarsRes] = await Promise.all([
+        apiFetch<MeetingResponseDTO | null>('/api/meetings/open'),
+        apiFetch<AvatarResponseDTO[]>('/api/avatars'),
+      ]);
+
+      if (avatarsRes.data) {
+        setAvatars(avatarsRes.data);
+      }
+
+      if (meetingRes.error || avatarsRes.error) {
+        setLoadError('Não foi possível carregar os dados. Tente recarregar a página.');
+        setState('no-meeting');
+        return;
+      }
+
+      if (!meetingRes.data) {
+        setState('no-meeting');
+        return;
+      }
+
+      setMeeting(meetingRes.data);
+      setState('form');
+    }
+
+    load();
+  }, []);
+
+  function handleSuccess(result: SubmitQuestionOutput) {
+    setLastResult(result);
+    setState('success');
+  }
+
+  function handleSendAnother() {
+    setLastResult(null);
+    setState('form');
+  }
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        <header className={styles.header}>
+          <h1 className={styles.title}>Caixa de Perguntas</h1>
+          <p className={styles.subtitle}>Envie perguntas anônimas para a reunião</p>
+        </header>
+
+        {state === 'loading' && (
+          <div className={styles.loading}>
+            <div className={styles.spinner} />
+            <span>Carregando...</span>
+          </div>
+        )}
+
+        {state === 'no-meeting' && (
+          <div className={styles.empty}>
+            {loadError ? (
+              <p>{loadError}</p>
+            ) : (
+              <>
+                <span className={styles.emptyIcon}>📭</span>
+                <p>Nenhuma reunião aberta para perguntas no momento.</p>
+                <p className={styles.emptyHint}>Volte quando uma reunião estiver em andamento.</p>
+              </>
+            )}
+          </div>
+        )}
+
+        {state === 'form' && meeting && (
+          <div className={styles.formSection}>
+            <div className={styles.meetingInfo}>
+              <span className={styles.meetingLabel}>Reunião</span>
+              <h2 className={styles.meetingTitle}>{meeting.title}</h2>
+            </div>
+            <div className={styles.anonNote}>
+              🔒 Suas perguntas são anônimas
+            </div>
+            <QuestionForm
+              meetingId={meeting.id}
+              avatars={avatars}
+              onSuccess={handleSuccess}
             />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+          </div>
+        )}
+
+        {state === 'success' && lastResult && (
+          <SuccessMessage
+            avatarId={lastResult.avatarId}
+            onSendAnother={handleSendAnother}
+          />
+        )}
       </main>
     </div>
   );

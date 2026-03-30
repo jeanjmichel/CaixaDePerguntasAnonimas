@@ -1,12 +1,36 @@
 :root {
-  --background: #ffffff;
+  --background: #f8f9fa;
   --foreground: #171717;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+  --color-success: #16a34a;
+  --color-success-bg: #f0fdf4;
+  --color-error: #dc2626;
+  --color-error-bg: #fef2f2;
+  --color-text-muted: #64748b;
+  --color-avatar-selected: #dbeafe;
+  --color-avatar-border: #2563eb;
+  --radius: 8px;
+  --max-width: 640px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0f172a;
+    --foreground: #e2e8f0;
+    --color-primary: #3b82f6;
+    --color-primary-hover: #60a5fa;
+    --color-surface: #1e293b;
+    --color-border: #334155;
+    --color-success: #22c55e;
+    --color-success-bg: #052e16;
+    --color-error: #ef4444;
+    --color-error-bg: #450a0a;
+    --color-text-muted: #94a3b8;
+    --color-avatar-selected: #1e3a5f;
+    --color-avatar-border: #3b82f6;
   }
 }
 
@@ -26,7 +50,7 @@ body {
   flex-direction: column;
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
