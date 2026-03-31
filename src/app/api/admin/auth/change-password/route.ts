@@ -22,10 +22,20 @@ export async function POST(request: NextRequest) {
       newPassword: body.newPassword,
     });
 
-    return NextResponse.json(
+    const newToken = jwtService.sign({
+      adminId: authResult.adminId,
+      mustChangePassword: false,
+    });
+    const cookieConfig = jwtService.getCookieConfig(newToken);
+
+    const response = NextResponse.json(
       { data: { message: 'Password changed successfully' } },
       { status: 200 },
     );
+
+    response.cookies.set(cookieConfig.name, cookieConfig.value, cookieConfig.options);
+
+    return response;
   } catch (error) {
     if (error instanceof ApplicationError) {
       const statusMap: Record<string, number> = {

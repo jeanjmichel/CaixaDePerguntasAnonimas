@@ -81,7 +81,7 @@ src/
 └── interface/
     ├── app/               # Next.js App Router (pages + API routes)
     ├── components/        # React components (public/, admin/, shared/)
-    ├── middleware/         # Auth guards
+    ├── middleware/         # Auth guards (withAdminAuth)
     └── hooks/             # Custom React hooks
 
 tests/
@@ -330,13 +330,11 @@ Retorna dados do admin autenticado (sem passwordHash). Requer autenticação, is
 | 401 | `UNAUTHORIZED` | Não autenticado |
 | 404 | `ADMIN_NOT_FOUND` | Admin não encontrado no banco |
 
-### Middleware de página
+### Proxy de página
 
-O middleware Next.js (`src/middleware.ts`) protege rotas `/admin/*`:
+O proxy Next.js (`src/proxy.ts`) protege rotas `/admin/*`:
 - Sem cookie → redireciona para `/admin/login`
-- Em `/admin/login` com cookie válido → redireciona para `/admin/dashboard`
-
-> **Nota:** Next.js 16 deprecou a convenção `middleware` em favor de `proxy`. Funciona atualmente, será migrado no Sprint 8.
+- Em `/admin/login` com cookie válido → redireciona para `/admin/meetings`
 
 ## API Admin (Reuniões)
 
@@ -575,19 +573,125 @@ Redefine a senha de outro administrador. Define `mustChangePassword: true`.
 - O diretório é criado automaticamente se não existir
 - SQLite é adequado para single-instance; não recomendado para multi-instance
 
+### Persistência no Azure
+
+O Azure App Service Linux persiste o diretório `/home/` entre restarts e deploys. O banco é armazenado em `/home/data/caixa.db` para garantir que dados sobrevivam a reinicializações.
+
+**Importante:** SQLite não suporta múltiplas instâncias simultâneas. O App Service deve estar configurado com **1 instância** (sem auto-scaling horizontal).
+
 ## Como publicar no Azure
 
-Scripts em `scripts/azure/`:
+### Pré-requisitos
+
+- Azure CLI instalado e logado (`az login`)
+- Subscription ativa
+
+### 1. Provisionar recursos
+
+Edite as variáveis no script e execute:
 
 ```bash
-# 1. Provisionar recursos
 bash scripts/azure/provision.sh
+```
 
-# 2. Deploy
+O script cria:
+- Resource Group: `rgCaixaDePerguntas`
+- App Service Plan: Linux, B1
+- Web App: Node.js 20
+- Variáveis de ambiente configuradas
+- Startup command: `npm run seed && npm run start`
+
+**Após provisionar, atualize os valores de produção:**
+
+```bash
+# Gerar JWT_SECRET seguro:
+openssl rand -base64 64
+
+# Atualizar variáveis sensíveis:
+az webapp config appsettings set \
+  --name app-caixa-de-perguntas \
+  --resource-group rgCaixaDePerguntas \
+  --settings \
+    JWT_SECRET="<valor-gerado>" \
+    SEED_ADMIN_PASSWORD="<senha-forte>"
+```
+
+### 2. Deploy
+
+```bash
 bash scripts/azure/deploy.sh
 ```
 
-> **Nota:** Ajuste subscription ID e outros parâmetros nos scripts antes de executar.
+O script:
+1. Instala dependências de produção
+2. Faz build da aplicação
+3. Empacota em zip
+4. Faz deploy via `az webapp deploy`
+
+### 3. Verificar
+
+```bash
+# Ver logs em tempo real:
+az webapp log tail --name app-caixa-de-perguntas --resource-group rgCaixaDePerguntas
+```
+
+A aplicação estará disponível em `https://app-caixa-de-perguntas.azurewebsites.net`.
+
+## Procedimento Operacional — Dia da Reunião
+
+Passo a passo para usar o sistema durante uma reunião:
+
+### Antes da reunião
+
+1. Acessar `/admin/login` e fazer login
+2. Ir em **Reuniões** e criar uma nova reunião com título e data
+3. Clicar em **Abrir Coleta** na reunião criada
+4. Compartilhar a URL pública (`/`) com os participantes
+
+### Durante a reunião
+
+1. Manter o painel admin aberto em `/admin/meetings/{id}/questions`
+2. Usar a aba **Submetidas** para ver perguntas chegando
+3. Clicar em **Selecionar** nas perguntas que serão respondidas
+4. Usar a aba **Selecionadas** como fila de perguntas para responder
+5. Clicar em **Marcar como Respondida** após responder cada pergunta
+6. Perguntas irrelevantes podem ser **Descartadas**
+
+### Após a reunião
+
+1. Clicar em **Fechar Coleta** na reunião
+2. Participantes verão que a coleta foi encerrada
+3. As perguntas ficam registradas para consulta futura
+
+### Dicas
+
+- A aba **Selecionadas** funciona como uma fila ordenada por tempo de seleção
+- Apenas uma reunião pode estar aberta por vez
+- O rate limiting protege contra spam (5 perguntas/minuto por IP)
+
+## Limitações Conhecidas
+
+| Limitação | Motivo | Impacto |
+|-----------|--------|--------|
+| Single-instance SQLite | Sem suporte a escritas concorrentes | Não escalar horizontalmente |
+| Rate limiting in-memory | Reseta quando a app reinicia | Proteção temporariamente perdida após restart |
+| Sem atualizações em tempo real | Polling manual no admin | Admin precisa atualizar a página para ver novas perguntas |
+| Sem edição de pergunta | Regra de negócio: pergunta é imutável após envio | Participante deve enviar nova pergunta |
+| Sem anexos | Fora do escopo | Apenas texto |
+| Sem multi-idioma | Apenas pt-BR | Interface fixa em português |
+| Sem busca de perguntas | Não implementado | Usar as abas por status para filtrar |
+
+## Possíveis Melhorias Futuras
+
+- **WebSocket/SSE** — Atualizações em tempo real no painel admin (feed de perguntas)
+- **PostgreSQL** — Substituir SQLite para suporte a múltiplas instâncias
+- **Exportação CSV** — Exportar perguntas de uma reunião para análise
+- **Estatísticas** — Dashboard com métricas (total de perguntas, taxa de resposta, etc.)
+- **Busca e filtros** — Pesquisar perguntas por texto ou avatar
+- **Avatares customizáveis** — Permitir upload de ícones/imagens
+- **Notificações sonoras** — Alerta no admin quando nova pergunta chegar
+- **Temas** — Suporte a temas visuais além de light/dark
+- **Histórico de reuniões** — Visualização pública de perguntas de reuniões passadas
 
 ## Status do Projeto
 
@@ -598,4 +702,4 @@ bash scripts/azure/deploy.sh
 - [x] Sprint 5 — Gestão de Reuniões (Admin)
 - [x] Sprint 6 — Gestão de Perguntas (Admin)
 - [x] Sprint 7 — Gestão de Administradores
-- [ ] Sprint 8 — Polish, Azure e Entrega
+- [x] Sprint 8 — Polish, Azure e Entrega

@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const AUTH_COOKIE_NAME = 'auth_token';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
 
   if (pathname === '/admin/login') {
     if (token) {
-      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+      return NextResponse.redirect(new URL('/admin/meetings', request.url));
     }
     return NextResponse.next();
   }

@@ -2,6 +2,41 @@
 
 Todas as alterações relevantes do projeto são documentadas neste arquivo.
 
+## [0.8.0] - 2026-03-30
+
+### Sprint 8 — Polish, Azure e Entrega
+
+#### Corrigido
+- **Bug crítico: JWT cookie não atualizado após troca de senha**
+  - Após `changeOwnPassword`, a rota agora emite novo JWT com `mustChangePassword: false` e atualiza o cookie na resposta
+  - Antes, o admin ficava preso com o token antigo e recebia 403 em todas as rotas protegidas
+  - Referência: mesma lógica de cookie já usada na rota de login
+
+#### Migrado
+- **middleware.ts → proxy.ts** — Migração para a nova convenção do Next.js 16
+  - Função renomeada de `middleware()` para `proxy()`
+  - Eliminado warning de depreciação no build
+  - Corrigido bug: redirecionamento de login ia para `/admin/dashboard` (inexistente) → agora redireciona para `/admin/meetings`
+
+#### Adicionado
+- **Scripts Azure (`scripts/azure/`):**
+  - `provision.sh` — Provisiona Resource Group, App Service Plan (Linux B1), Web App (Node 20), variáveis de ambiente, startup command
+  - `deploy.sh` — Build local, empacotamento zip, deploy via `az webapp deploy`, verificação
+  - Resource Group: `rgCaixaDePerguntas` (conforme copilot-instructions.md §23)
+- **README — Seções novas:**
+  - Persistência SQLite no Azure (`/home/data/`)
+  - Como publicar no Azure (provisionar + deploy + verificar + atualizar secrets)
+  - Procedimento Operacional — Dia da Reunião (antes/durante/após + dicas)
+  - Limitações Conhecidas (7 itens documentados)
+  - Possíveis Melhorias Futuras (9 itens)
+  - Atualização da seção Proxy (ex-Middleware)
+- **1 teste novo:**
+  - Integração: verifica que JWT emitido após troca de senha tem `mustChangePassword=false`
+
+#### Atualizado
+- README: seção Proxy atualizada, referências ao middleware removidas, Sprint 8 marcado como completo
+- Total: 225 testes, 35 suítes
+
 ## [0.7.0] - 2026-03-30
 
 ### Sprint 7 — Gestão de Administradores

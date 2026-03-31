@@ -104,4 +104,27 @@ describe('Auth Use Cases — Integration', () => {
     expect(result.username).toBe('admin');
     expect(result).not.toHaveProperty('passwordHash');
   });
+
+  it('should issue JWT with mustChangePassword=false after password change', async () => {
+    // Login gets JWT with mustChangePassword=true
+    const loginResult = await login.execute({ username: 'admin', password: seedPassword });
+    const initialPayload = jwtService.verify(loginResult.token);
+    expect(initialPayload?.mustChangePassword).toBe(true);
+
+    // Change password clears the flag in the DB
+    await changeOwnPassword.execute('admin-seed', {
+      oldPassword: seedPassword,
+      newPassword: 'newsecure123',
+    });
+
+    // A new JWT should reflect mustChangePassword=false
+    const newToken = jwtService.sign({ adminId: 'admin-seed', mustChangePassword: false });
+    const newPayload = jwtService.verify(newToken);
+    expect(newPayload?.mustChangePassword).toBe(false);
+
+    // Login with new password also confirms the flag is cleared
+    const reloginResult = await login.execute({ username: 'admin', password: 'newsecure123' });
+    const reloginPayload = jwtService.verify(reloginResult.token);
+    expect(reloginPayload?.mustChangePassword).toBe(false);
+  });
 });
