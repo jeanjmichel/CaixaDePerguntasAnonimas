@@ -2,6 +2,53 @@
 
 Todas as alterações relevantes do projeto são documentadas neste arquivo.
 
+## [0.10.0] - 2026-04-01
+
+### Bootstrap Lazy (Non-Blocking)
+
+#### Alterado
+- **Bootstrap não-bloqueante** — `instrumentation.ts` dispara bootstrap em background sem `await`, permitindo que o servidor inicie imediatamente
+- **`ensureBootstrap()`** — nova função exportada por `container.ts` que garante conclusão do bootstrap antes do acesso ao banco
+- **Rotas DB-dependentes** aguardam bootstrap via `ensureBootstrap()` na primeira requisição
+- **`/api/health`** permanece completamente isolado — zero imports, resposta instantânea
+- **Guards `withAdminAuth` / `withAdminAuthNoPasswordCheck`** aguardam bootstrap automaticamente (cobre 11 rotas admin)
+- **4 rotas auth admin** (`login`, `logout`, `me`, `change-password`) e **3 rotas públicas** (`avatars`, `meetings/open`, `questions`) aguardam bootstrap individualmente
+- Falhas de bootstrap logam `[Bootstrap] Failed` sem `process.exit()`
+
+## [0.9.1] - 2026-04-01
+
+### Adicionado
+- **Health check endpoint** — `GET /api/health` retorna `200 OK` (liveness probe para Azure App Service)
+
+## [0.9.0] - 2026-04-01
+
+### Bootstrap Idempotente da Aplicação
+
+#### Adicionado
+- **Application Bootstrap automático via `instrumentation.ts`**
+  - Executa automaticamente ao iniciar o servidor (Next.js `register()` hook)
+  - Cria diretório do banco, executa migrações, garante admin inicial
+  - Idempotente e seguro para múltiplos restarts
+  - Guard de execução única por processo (module-level promise)
+- **Ports novos no domínio:**
+  - `IMigrationRunner` — abstração para execução de migrações
+  - `IBootstrapConfigProvider` + `SeedAdminConfig` — abstração para configuração de seed
+- **Application Bootstrapper (`ApplicationBootstrapper`):**
+  - Orquestrador de inicialização na camada de application
+  - Usa exclusivamente ports (sem SQL direto)
+  - Nunca loga senhas ou secrets
+- **Infrastructure adapters:**
+  - `SqliteMigrationRunner` — implementa `IMigrationRunner` delegando para `runMigrations()`
+  - `EnvironmentBootstrapConfigProvider` — lê `SEED_ADMIN_USERNAME` (default: `'admin'`) e `SEED_ADMIN_PASSWORD` de `process.env`
+- **Testes novos:**
+  - Unit: 9 testes para `ApplicationBootstrapper` (mocked ports)
+  - Integration: 7 testes para bootstrap end-to-end com SQLite `:memory:` + guard de execução única
+
+#### Alterado
+- **`container.ts`:** adicionada função `bootstrapApplication()` com guard de execução única; removido `runMigrations()` de `getContainer()` (bootstrap é o único ponto de inicialização)
+- **README:** seção "Application Bootstrap" adicionada, "Como rodar localmente" atualizada (sem `npm run seed` obrigatório), seção de deploy atualizada
+- **`seed.ts` e `scripts/seed.ts`:** marcados como dev-only (produção usa bootstrap)
+
 ## [0.8.0] - 2026-03-30
 
 ### Sprint 8 — Polish, Azure e Entrega

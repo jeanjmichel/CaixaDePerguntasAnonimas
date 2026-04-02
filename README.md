@@ -65,19 +65,22 @@ src/
 │   ├── enums/             # QuestionStatus, Avatar
 │   ├── errors/            # DomainError
 │   └── ports/             # IMeetingRepository, IQuestionRepository, IAdminRepository,
-│                          # IPasswordHasher, IIdGenerator, IRateLimiter, ISanitizer
+│                          # IPasswordHasher, IIdGenerator, IRateLimiter, ISanitizer,
+│                          # IMigrationRunner, IBootstrapConfigProvider
 ├── application/
+│   ├── bootstrap/         # ApplicationBootstrapper
 │   ├── use-cases/         # Organized by: public/, questions/, meetings/, admin/
 │   ├── validation/        # InputValidator
 │   ├── dtos/              # Request/Response DTOs
 │   └── errors/            # ApplicationError
 ├── infrastructure/
-│   ├── database/          # connection, migrations, seed
+│   ├── bootstrap/         # SqliteMigrationRunner, EnvironmentBootstrapConfigProvider
+│   ├── database/          # connection, migrations, seed (dev-only)
 │   ├── repositories/      # SqliteMeetingRepository, SqliteQuestionRepository, SqliteAdminRepository
 │   ├── security/          # BcryptPasswordHasher, InMemoryRateLimiter, XssSanitizer
 │   ├── auth/              # JwtAuthService
 │   ├── id/                # UuidGenerator
-│   └── container.ts       # Composition root (DI wiring)
+│   └── container.ts       # Composition root (DI wiring + bootstrapApplication)
 └── interface/
     ├── app/               # Next.js App Router (pages + API routes)
     ├── components/        # React components (public/, admin/, shared/)
@@ -87,12 +90,14 @@ src/
 tests/
 ├── unit/domain/           # Entidades e enums
 ├── unit/use-cases/        # Use cases com mocks
+├── unit/bootstrap/        # ApplicationBootstrapper com mocks
 ├── integration/repositories/  # Repos com SQLite :memory:
+├── integration/bootstrap/ # Bootstrap end-to-end com SQLite :memory:
 ├── integration/api/       # Rotas API críticas
 └── helpers/               # Test container, factories
 
 scripts/
-├── seed.ts                # Seed script
+├── seed.ts                # Seed script (local dev only)
 └── azure/                 # provision.sh, deploy.sh
 ```
 
@@ -144,22 +149,69 @@ npm install
 cp .env.example .env.local
 # Editar .env.local com valores desejados
 
-# 3. Executar seed (cria banco + admin inicial)
-npm run seed
-
-# 4. Iniciar servidor de desenvolvimento
+# 3. Iniciar servidor de desenvolvimento
 npm run dev
 ```
 
 O sistema estará disponível em `http://localhost:3000`.
 
-## Como rodar seed
+Ao iniciar, o **bootstrap automático** (`instrumentation.ts`) executa migrações e cria o admin inicial usando `SEED_ADMIN_USERNAME` e `SEED_ADMIN_PASSWORD` do `.env.local`. Não é necessário rodar `npm run seed` manualmente.
+
+## Application Bootstrap
+
+O sistema possui um mecanismo de bootstrap idempotente e **não-bloqueante** que executa automaticamente ao iniciar o servidor (via `src/instrumentation.ts` → Next.js `register()` hook).
+
+### O que o bootstrap faz
+
+1. Cria o diretório pai do banco de dados se não existir
+2. Abre a conexão com o SQLite
+3. Executa migrações (idempotentes — `CREATE TABLE IF NOT EXISTS`)
+4. Verifica se o admin inicial existe:
+   - Se `SEED_ADMIN_PASSWORD` não está definida → pula criação com log informativo
+   - Se o admin já existe → não faz nada (nunca sobrescreve senha existente)
+   - Se o admin não existe → cria com `isActive=true`, `mustChangePassword=true`
+
+### Comportamento lazy (non-blocking)
+
+O bootstrap é disparado em background durante o `register()` do Next.js, **sem bloquear** a inicialização do servidor. Isso garante que:
+
+- **`/api/health`** responde `200 OK` imediatamente, mesmo antes do bootstrap completar
+- O Azure App Service health check nunca mata o container por timeout de startup
+- Rotas que dependem do banco (todas exceto `/api/health`) aguardam a conclusão do bootstrap na primeira requisição via `ensureBootstrap()`
+- Após a primeira requisição, `ensureBootstrap()` resolve instantaneamente (promise já resolvida)
+
+### Garantias
+
+- **Idempotente**: seguro para executar em cada restart da aplicação
+- **Execução única**: guard por promise garante uma única execução por processo
+- **Non-blocking**: servidor inicia imediatamente, bootstrap roda em background
+- **Sem mutação**: nunca altera dados existentes (admins, reuniões, perguntas)
+- **Sem secrets em logs**: senhas nunca são logadas
+- **Sem `process.exit()`**: falhas são logadas, não terminam o processo
+
+### Logs de bootstrap
+
+```
+[Bootstrap] Started
+[Bootstrap] Migrations completed
+[Bootstrap] Seed admin created          # ou "already exists" ou "Skipped: missing seed password"
+[Bootstrap] Completed
+```
+
+### Variáveis de ambiente
+
+| Variável | Descrição | Default |
+|----------|-----------|--------|
+| `SEED_ADMIN_USERNAME` | Username do admin inicial | `admin` |
+| `SEED_ADMIN_PASSWORD` | Senha do admin inicial | (bootstrap pula se ausente) |
+
+## Como rodar seed (local dev only)
 
 ```bash
 npm run seed
 ```
 
-O seed é **idempotente**: pode ser executado múltiplas vezes sem duplicar dados. Se o admin já existir, o seed é ignorado com log informativo.
+O script `scripts/seed.ts` é mantido apenas para **conveniência em desenvolvimento local** (ex.: reset do banco). Em produção, o bootstrap automático é o mecanismo primário. O seed é **idempotente**: pode ser executado múltiplas vezes sem duplicar dados.
 
 ## Como executar testes
 
@@ -188,6 +240,12 @@ O sistema implementa rate limiting in-memory para submissão de perguntas:
 - Aceitável para o cenário de reuniões com dezenas de participantes
 
 ## API Pública
+
+### `GET /api/health`
+
+Health check endpoint (liveness probe). Público, sem autenticação.
+
+**Resposta (200):** `OK` (text/plain)
 
 ### `GET /api/meetings/open`
 
@@ -598,8 +656,10 @@ O script cria:
 - Resource Group: `rgCaixaDePerguntas`
 - App Service Plan: Linux, B1
 - Web App: Node.js 20
-- Variáveis de ambiente configuradas
-- Startup command: `npm run seed && npm run start`
+- Variáveis de ambiente configuradas (incluindo `SEED_ADMIN_USERNAME` e `SEED_ADMIN_PASSWORD` para bootstrap)
+- Startup command: `mkdir -p /home/data && npm run start`
+
+**Nota:** O admin inicial é criado automaticamente pelo bootstrap da aplicação ao iniciar. Não é necessário executar `npm run seed` em produção.
 
 **Após provisionar, atualize os valores de produção:**
 

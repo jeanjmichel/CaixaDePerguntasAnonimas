@@ -1,17 +1,15 @@
 #!/bin/bash
 # ============================================
 # Caixa de Perguntas — Azure Provisioning
-# ============================================
-# Creates all Azure resources needed for the application.
-# Prerequisites: Azure CLI logged in (az login)
-#
-# Usage:
-#   bash scripts/azure/provision.sh
-#
-# Customize the variables below before running.
+# Source deploy + Kudu zip build strategy
 # ============================================
 
 set -euo pipefail
+
+# ---------- Resolve project root ----------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_ROOT"
 
 # ---------- Configuration ----------
 RESOURCE_GROUP="rgCaixaDePerguntas"
@@ -20,6 +18,29 @@ APP_SERVICE_PLAN="planCaixaDePerguntas"
 APP_NAME="app-caixa-de-perguntas"
 SKU="B1"
 NODE_VERSION="20-lts"
+
+DATABASE_PATH="/home/data/caixa.db"
+
+# IMPORTANT: change before production use
+SEED_ADMIN_USERNAME="admin"
+SEED_ADMIN_PASSWORD="hArdc0d&dP@ssw0rd"
+JWT_SECRET="HKbz9iBNOqHz5PqJTkAJ2MUWJhCkepADYakDSpX1jpjoOJnZIXnM94AL9N1v5LBP"
+JWT_EXPIRATION_HOURS="8"
+QUESTION_MIN_LENGTH="5"
+QUESTION_MAX_LENGTH="500"
+RATE_LIMIT_WINDOW_MS="60000"
+RATE_LIMIT_MAX_REQUESTS="5"
+
+STARTUP_COMMAND="mkdir -p /home/data && npm run start"
+
+# ---------- Pre-checks ----------
+echo "Checking Azure CLI login..."
+az account show --output none 2>/dev/null || {
+  echo "ERROR: Not logged in to Azure CLI. Run 'az login' first."
+  exit 1
+}
+
+echo "Using project root: $PROJECT_ROOT"
 
 # ---------- Resource Group ----------
 echo "Creating resource group: $RESOURCE_GROUP..."
@@ -41,6 +62,14 @@ az appservice plan create \
 
 echo "App Service Plan created."
 
+# ---------- Force single instance ----------
+echo "Setting instance count to 1..."
+az appservice plan update \
+  --name "$APP_SERVICE_PLAN" \
+  --resource-group "$RESOURCE_GROUP" \
+  --number-of-workers 1 \
+  --output none
+
 # ---------- Web App ----------
 echo "Creating Web App: $APP_NAME..."
 az webapp create \
@@ -52,25 +81,32 @@ az webapp create \
 
 echo "Web App created."
 
+# ---------- Remove conflicting app setting if it exists ----------
+echo "Removing WEBSITE_RUN_FROM_PACKAGE if present..."
+az webapp config appsettings delete \
+  --name "$APP_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --setting-names WEBSITE_RUN_FROM_PACKAGE \
+  --output none || true
+
 # ---------- Environment Variables ----------
 echo "Configuring environment variables..."
-
-# IMPORTANT: Replace these values before running in production!
-# Generate a strong JWT_SECRET: openssl rand -base64 64
 az webapp config appsettings set \
   --name "$APP_NAME" \
   --resource-group "$RESOURCE_GROUP" \
   --settings \
-    DATABASE_PATH="/home/data/caixa.db" \
-    JWT_SECRET="CHANGE-ME-USE-openssl-rand-base64-64" \
-    JWT_EXPIRATION_HOURS="8" \
-    SEED_ADMIN_USERNAME="admin" \
-    SEED_ADMIN_PASSWORD="CHANGE-ME-STRONG-PASSWORD" \
-    RATE_LIMIT_WINDOW_MS="60000" \
-    RATE_LIMIT_MAX_REQUESTS="5" \
-    QUESTION_MIN_LENGTH="5" \
-    QUESTION_MAX_LENGTH="500" \
+    SCM_DO_BUILD_DURING_DEPLOYMENT="true" \
+    ENABLE_ORYX_BUILD="true" \
     NODE_ENV="production" \
+    DATABASE_PATH="$DATABASE_PATH" \
+    JWT_SECRET="$JWT_SECRET" \
+    JWT_EXPIRATION_HOURS="$JWT_EXPIRATION_HOURS" \
+    SEED_ADMIN_USERNAME="$SEED_ADMIN_USERNAME" \
+    SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" \
+    RATE_LIMIT_WINDOW_MS="$RATE_LIMIT_WINDOW_MS" \
+    RATE_LIMIT_MAX_REQUESTS="$RATE_LIMIT_MAX_REQUESTS" \
+    QUESTION_MIN_LENGTH="$QUESTION_MIN_LENGTH" \
+    QUESTION_MAX_LENGTH="$QUESTION_MAX_LENGTH" \
   --output none
 
 echo "Environment variables configured."
@@ -80,15 +116,33 @@ echo "Setting startup command..."
 az webapp config set \
   --name "$APP_NAME" \
   --resource-group "$RESOURCE_GROUP" \
-  --startup-file "npm run seed && npm run start" \
+  --startup-file "$STARTUP_COMMAND" \
   --output none
 
 echo "Startup command set."
 
-# ---------- Persistent Storage ----------
-echo "Ensuring /home/data/ is used for SQLite persistence..."
-echo "  Azure App Service Linux persists /home/ across restarts."
-echo "  DATABASE_PATH is set to /home/data/caixa.db."
+# ---------- Health Check ----------
+echo "Configuring health check path..."
+
+az webapp config set \
+  --name "$APP_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --generic-configurations "{\"healthCheckPath\":\"/api/health\"}" \
+  --output none
+
+echo "Health check configured."
+
+# ---------- Enable Logs ----------
+echo "Enabling application logging..."
+az webapp log config \
+  --name "$APP_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --application-logging filesystem \
+  --level information \
+  --web-server-logging filesystem \
+  --detailed-error-messages true \
+  --failed-request-tracing true \
+  --output none
 
 # ---------- Summary ----------
 echo ""
@@ -99,9 +153,13 @@ echo "Resource Group: $RESOURCE_GROUP"
 echo "App Service Plan: $APP_SERVICE_PLAN ($SKU)"
 echo "Web App: $APP_NAME"
 echo "URL: https://$APP_NAME.azurewebsites.net"
+echo "Database Path: $DATABASE_PATH"
 echo ""
-echo "IMPORTANT: Update JWT_SECRET and SEED_ADMIN_PASSWORD"
-echo "before deploying to production!"
+echo "IMPORTANT:"
+echo "- Change JWT_SECRET before production use"
+echo "- Change SEED_ADMIN_PASSWORD before production use"
+echo "- Remote build is enabled in Azure"
+echo "- WEBSITE_RUN_FROM_PACKAGE was removed"
 echo ""
 echo "Next step: bash scripts/azure/deploy.sh"
 echo "============================================"
