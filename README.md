@@ -146,7 +146,7 @@ cp .env.example .env.local
 npm install
 
 # 2. Configurar variáveis
-cp .env.example .env.local
+cp .env_example .env.local
 # Editar .env.local com valores desejados
 
 # 3. Iniciar servidor de desenvolvimento
